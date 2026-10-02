@@ -1,0 +1,60 @@
+CREATE TABLE IF NOT EXISTS users (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL CHECK (char_length(trim(name)) BETWEEN 2 AND 100),
+  email VARCHAR(254) NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS diagnostic_centres (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  location VARCHAR(250) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS diagnostic_tests (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(150) NOT NULL UNIQUE,
+  description TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS centre_tests (
+  id BIGSERIAL PRIMARY KEY,
+  centre_id BIGINT NOT NULL REFERENCES diagnostic_centres(id) ON DELETE CASCADE,
+  test_id BIGINT NOT NULL REFERENCES diagnostic_tests(id) ON DELETE CASCADE,
+  price NUMERIC(10, 2) NOT NULL CHECK (price > 0),
+  UNIQUE (centre_id, test_id)
+);
+
+CREATE TABLE IF NOT EXISTS bookings (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  centre_test_id BIGINT NOT NULL REFERENCES centre_tests(id) ON DELETE RESTRICT,
+  appointment_time TIMESTAMPTZ NOT NULL,
+  amount NUMERIC(10, 2) NOT NULL CHECK (amount > 0),
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+    CHECK (status IN ('PENDING', 'CONFIRMED', 'FAILED', 'CANCELLED')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS payments (
+  id BIGSERIAL PRIMARY KEY,
+  booking_id BIGINT NOT NULL UNIQUE REFERENCES bookings(id) ON DELETE RESTRICT,
+  provider_payment_id VARCHAR(100) NOT NULL UNIQUE,
+  amount NUMERIC(10, 2) NOT NULL CHECK (amount > 0),
+  status VARCHAR(20) NOT NULL CHECK (status IN ('SUCCESS', 'FAILED')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS webhook_events (
+  id BIGSERIAL PRIMARY KEY,
+  event_id VARCHAR(150) NOT NULL UNIQUE,
+  event_type VARCHAR(100) NOT NULL,
+  processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_bookings_user_created ON bookings(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
+CREATE INDEX IF NOT EXISTS idx_centre_tests_test ON centre_tests(test_id);
